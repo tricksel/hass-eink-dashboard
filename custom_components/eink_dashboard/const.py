@@ -25,3 +25,4 @@ class WidgetType(StrEnum):
     TEXT = "text"
     LINE = "line"
     SEPARATOR = "separator"
+    WEATHER = "weather"

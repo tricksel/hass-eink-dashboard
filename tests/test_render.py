@@ -4,10 +4,43 @@ import io
 
 from PIL import Image
 
-from custom_components.eink_dashboard.const import PADDING
+from custom_components.eink_dashboard.const import (
+    PADDING,
+)
 from custom_components.eink_dashboard.render import (
     render_dashboard,
 )
+
+MOCK_WEATHER_STATE = {
+    "weather.home": {
+        "state": "sunny",
+        "attributes": {
+            "temperature": 22,
+            "humidity": 58,
+            "wind_speed": 12,
+            "forecast": [
+                {
+                    "datetime": "2026-05-02T12:00:00",
+                    "temperature": 24,
+                    "templow": 16,
+                    "condition": "sunny",
+                },
+                {
+                    "datetime": "2026-05-03T12:00:00",
+                    "temperature": 19,
+                    "templow": 14,
+                    "condition": "cloudy",
+                },
+                {
+                    "datetime": "2026-05-04T12:00:00",
+                    "temperature": 21,
+                    "templow": 15,
+                    "condition": "partlycloudy",
+                },
+            ],
+        },
+    },
+}
 
 
 def _png_to_image(png_bytes: bytes) -> Image.Image:
@@ -207,3 +240,162 @@ class TestRenderSeparator:
         img = _png_to_image(result)
         # Default is COLOR_LIGHT_GRAY = 210
         assert _pixel(img, 100, 50) == 210
+
+
+class TestRenderWeather:
+    def _config(self, **overrides: object) -> dict[str, object]:
+        base: dict[str, object] = {
+            "width": 600,
+            "height": 400,
+            "states": MOCK_WEATHER_STATE,
+        }
+        base.update(overrides)
+        return base
+
+    def test_weather_draws_temperature(self) -> None:
+        widgets = [
+            {
+                "type": "weather",
+                "entity": "weather.home",
+                "x": PADDING,
+                "y": 10,
+            }
+        ]
+        result = render_dashboard(widgets, self._config())
+
+        img = _png_to_image(result)
+        has_dark = any(
+            _pixel(img, x, y) < 128
+            for x in range(PADDING + 100, 300)
+            for y in range(10, 60)
+        )
+        assert has_dark
+
+    def test_weather_draws_forecast(self) -> None:
+        widgets = [
+            {
+                "type": "weather",
+                "entity": "weather.home",
+                "x": PADDING,
+                "y": 10,
+                "forecast_days": 3,
+            }
+        ]
+        result = render_dashboard(widgets, self._config())
+
+        img = _png_to_image(result)
+        has_dark_forecast = any(
+            _pixel(img, x, y) < 128
+            for x in range(50, 550)
+            for y in range(110, 200)
+        )
+        assert has_dark_forecast
+
+    def test_weather_missing_entity_is_noop(self) -> None:
+        widgets = [
+            {
+                "type": "weather",
+                "entity": "weather.nonexistent",
+                "x": PADDING,
+                "y": 10,
+            }
+        ]
+        result = render_dashboard(widgets, self._config())
+
+        img = _png_to_image(result)
+        all_white = all(
+            _pixel(img, x, y) == 255
+            for x in range(0, 600, 20)
+            for y in range(0, 400, 20)
+        )
+        assert all_white
+
+    def test_weather_no_forecast(self) -> None:
+        states = {
+            "weather.home": {
+                "state": "cloudy",
+                "attributes": {
+                    "temperature": 15,
+                    "humidity": 70,
+                    "wind_speed": 20,
+                    "forecast": [],
+                },
+            }
+        }
+        widgets = [
+            {
+                "type": "weather",
+                "entity": "weather.home",
+                "x": PADDING,
+                "y": 10,
+            }
+        ]
+        result = render_dashboard(
+            widgets,
+            {"width": 600, "height": 300, "states": states},
+        )
+        img = _png_to_image(result)
+        assert img.size == (600, 300)
+        has_icon = any(
+            _pixel(img, x, y) < 200
+            for x in range(PADDING, PADDING + 90)
+            for y in range(10, 100)
+        )
+        assert has_icon
+        has_temp = any(
+            _pixel(img, x, y) < 128
+            for x in range(PADDING + 100, 300)
+            for y in range(10, 60)
+        )
+        assert has_temp
+
+    def test_weather_icon_sunny(self) -> None:
+        widgets = [
+            {
+                "type": "weather",
+                "entity": "weather.home",
+                "x": PADDING,
+                "y": 10,
+            }
+        ]
+        result = render_dashboard(widgets, self._config())
+
+        img = _png_to_image(result)
+        icon_area_has_drawing = any(
+            _pixel(img, x, y) < 200
+            for x in range(PADDING, PADDING + 90)
+            for y in range(10, 100)
+        )
+        assert icon_area_has_drawing
+
+    def test_weather_rainy_condition(self) -> None:
+        states = {
+            "weather.home": {
+                "state": "rainy",
+                "attributes": {
+                    "temperature": 10,
+                    "humidity": 90,
+                    "wind_speed": 25,
+                    "forecast": [],
+                },
+            }
+        }
+        widgets = [
+            {
+                "type": "weather",
+                "entity": "weather.home",
+                "x": PADDING,
+                "y": 10,
+            }
+        ]
+        result = render_dashboard(
+            widgets,
+            {"width": 600, "height": 200, "states": states},
+        )
+        img = _png_to_image(result)
+        has_drawing = any(
+            _pixel(img, x, y) < 200
+            for x in range(PADDING, PADDING + 90)
+            for y in range(10, 100)
+        )
+        assert has_drawing
