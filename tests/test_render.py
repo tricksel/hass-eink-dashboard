@@ -399,3 +399,153 @@ class TestRenderWeather:
             for y in range(10, 100)
         )
         assert has_drawing
+
+
+MOCK_SENSOR_STATES = {
+    "sensor.living_room_temperature": {
+        "state": "22.1",
+        "attributes": {
+            "unit_of_measurement": "°C",
+            "friendly_name": "Living Room",
+        },
+    },
+    "sensor.bedroom_temperature": {
+        "state": "19.8",
+        "attributes": {
+            "unit_of_measurement": "°C",
+            "friendly_name": "Bedroom",
+        },
+    },
+    "sensor.humidity": {
+        "state": "45",
+        "attributes": {
+            "unit_of_measurement": "%",
+            "friendly_name": "Humidity",
+        },
+    },
+}
+
+
+class TestRenderSensorRows:
+    def _config(self, **overrides: object) -> dict[str, object]:
+        base: dict[str, object] = {
+            "width": 400,
+            "height": 300,
+            "states": MOCK_SENSOR_STATES,
+        }
+        base.update(overrides)
+        return base
+
+    def test_sensor_rows_draws_labels(self) -> None:
+        widgets = [
+            {
+                "type": "sensor_rows",
+                "x": PADDING,
+                "y": 10,
+                "entities": [
+                    "sensor.living_room_temperature",
+                    "sensor.bedroom_temperature",
+                ],
+            }
+        ]
+        result = render_dashboard(widgets, self._config())
+
+        img = _png_to_image(result)
+        has_dark_row1 = any(
+            _pixel(img, x, y) < 128
+            for x in range(PADDING, 200)
+            for y in range(10, 40)
+        )
+        has_dark_row2 = any(
+            _pixel(img, x, y) < 128
+            for x in range(PADDING, 200)
+            for y in range(40, 70)
+        )
+        assert has_dark_row1
+        assert has_dark_row2
+
+    def test_sensor_rows_with_title(self) -> None:
+        widgets = [
+            {
+                "type": "sensor_rows",
+                "x": PADDING,
+                "y": 10,
+                "title": "Temperature",
+                "entities": [
+                    "sensor.living_room_temperature",
+                ],
+            }
+        ]
+        result = render_dashboard(widgets, self._config())
+
+        img = _png_to_image(result)
+        has_title = any(
+            _pixel(img, x, y) < 128
+            for x in range(PADDING, 200)
+            for y in range(10, 35)
+        )
+        assert has_title
+
+    def test_sensor_rows_values_right_aligned(
+        self,
+    ) -> None:
+        widgets = [
+            {
+                "type": "sensor_rows",
+                "x": PADDING,
+                "y": 10,
+                "entities": ["sensor.living_room_temperature"],
+            }
+        ]
+        result = render_dashboard(widgets, self._config())
+
+        img = _png_to_image(result)
+        has_dark_right = any(
+            _pixel(img, x, y) < 128
+            for x in range(300, 400)
+            for y in range(10, 40)
+        )
+        assert has_dark_right
+
+    def test_sensor_rows_missing_entity_skipped(
+        self,
+    ) -> None:
+        widgets = [
+            {
+                "type": "sensor_rows",
+                "x": PADDING,
+                "y": 10,
+                "entities": [
+                    "sensor.nonexistent",
+                    "sensor.humidity",
+                ],
+            }
+        ]
+        result = render_dashboard(widgets, self._config())
+
+        img = _png_to_image(result)
+        has_dark_first_row = any(
+            _pixel(img, x, y) < 128
+            for x in range(PADDING, 200)
+            for y in range(10, 40)
+        )
+        assert has_dark_first_row
+
+    def test_sensor_rows_empty_entities(self) -> None:
+        widgets = [
+            {
+                "type": "sensor_rows",
+                "x": PADDING,
+                "y": 10,
+                "entities": [],
+            }
+        ]
+        result = render_dashboard(widgets, self._config())
+
+        img = _png_to_image(result)
+        all_white = all(
+            _pixel(img, x, y) == 255
+            for x in range(0, 400, 20)
+            for y in range(0, 300, 20)
+        )
+        assert all_white

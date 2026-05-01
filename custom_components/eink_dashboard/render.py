@@ -135,7 +135,11 @@ def _draw_weather_icon(
             [cx - 16, cy + 2, cx + 20, cy + 12],
             fill=COLOR_GRAY,
         )
-        draw.line([(cx - 16, cy + 12), (cx + 20, cy + 12)], fill=COLOR_BLACK, width=1)
+        draw.line(
+            [(cx - 16, cy + 12), (cx + 20, cy + 12)],
+            fill=COLOR_BLACK,
+            width=1,
+        )
         if condition == "partlycloudy":
             draw.ellipse(
                 [cx + 10, cy - 22, cx + 26, cy - 6],
@@ -157,7 +161,11 @@ def _draw_weather_icon(
             [cx - 14, cy - 2, cx + 12, cy + 4],
             fill=COLOR_GRAY,
         )
-        draw.line([(cx - 14, cy + 4), (cx + 12, cy + 4)], fill=COLOR_BLACK, width=1)
+        draw.line(
+            [(cx - 14, cy + 4), (cx + 12, cy + 4)],
+            fill=COLOR_BLACK,
+            width=1,
+        )
         for dx in [-8, 0, 8]:
             draw.line(
                 [(cx + dx, cy + 8), (cx + dx - 3, cy + 18)],
@@ -169,7 +177,12 @@ def _draw_weather_icon(
         bbox = draw.textbbox((0, 0), "?", font=font)
         tw = bbox[2] - bbox[0]
         th = bbox[3] - bbox[1]
-        draw.text((cx - tw // 2, cy - th // 2), "?", fill=COLOR_BLACK, font=font)
+        draw.text(
+            (cx - tw // 2, cy - th // 2),
+            "?",
+            fill=COLOR_BLACK,
+            font=font,
+        )
 
 
 def render_weather(
@@ -243,7 +256,11 @@ def render_weather(
     for i, day in enumerate(forecast[:forecast_days]):
         cx = x + col_width * i + col_width // 2
         dt_str = day.get("datetime")
-        day_label = _DAY_ABBREV[datetime.fromisoformat(dt_str).weekday()] if dt_str else ""
+        if dt_str:
+            dt = datetime.fromisoformat(dt_str)
+            day_label = _DAY_ABBREV[dt.weekday()]
+        else:
+            day_label = ""
         bbox = draw.textbbox((0, 0), day_label, font=font_sm)
         text_w = bbox[2] - bbox[0]
         draw.text(
@@ -268,11 +285,55 @@ def render_weather(
         )
 
 
+_SENSOR_ROW_HEIGHT = 30
+
+
+def render_sensor_rows(
+    draw: ImageDraw.ImageDraw,
+    widget: Widget,
+    config: DisplayConfig,
+) -> None:
+    x = widget.get("x", PADDING)
+    y = widget.get("y", 0)
+    title = widget.get("title", "")
+    entity_ids: list[str] = widget.get("entities", [])
+    states = config.get("states", {})
+    width = config["width"]
+
+    font_md = _load_font(22)
+
+    if title:
+        draw.text((x, y), title, fill=COLOR_BLACK, font=font_md)
+        y += 32
+
+    for entity_id in entity_ids:
+        state = states.get(entity_id)
+        if state is None:
+            continue
+        attrs = state.get("attributes", {})
+        label = attrs.get("friendly_name", entity_id)
+        value = state.get("state", "")
+        unit = attrs.get("unit_of_measurement", "")
+        display_val = f"{value}{unit}" if unit else value
+
+        draw.text((x + 16, y), label, fill=COLOR_BLACK, font=font_md)
+        bbox = draw.textbbox((0, 0), display_val, font=font_md)
+        text_w = bbox[2] - bbox[0]
+        draw.text(
+            (width - PADDING - text_w, y),
+            display_val,
+            fill=COLOR_BLACK,
+            font=font_md,
+        )
+        y += _SENSOR_ROW_HEIGHT
+
+
 _RENDERERS: dict[WidgetType, RendererFn] = {
     WidgetType.TEXT: render_text,
     WidgetType.LINE: render_line,
     WidgetType.SEPARATOR: render_separator,
     WidgetType.WEATHER: render_weather,
+    WidgetType.SENSOR_ROWS: render_sensor_rows,
 }
 
 

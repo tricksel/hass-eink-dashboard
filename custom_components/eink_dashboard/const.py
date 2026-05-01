@@ -26,3 +26,4 @@ class WidgetType(StrEnum):
     LINE = "line"
     SEPARATOR = "separator"
     WEATHER = "weather"
+    SENSOR_ROWS = "sensor_rows"
