@@ -28,3 +28,4 @@ class WidgetType(StrEnum):
     WEATHER = "weather"
     SENSOR_ROWS = "sensor_rows"
     BATTERY_BAR = "battery_bar"
+    STATUS_ICONS = "status_icons"

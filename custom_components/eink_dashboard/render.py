@@ -378,6 +378,78 @@ def render_battery_bar(
     )
 
 
+_STATUS_ICON_SIZE = 12
+_STATUS_ROW_HEIGHT = 26
+_PROBLEM_DEVICE_CLASSES = {
+    "door",
+    "window",
+    "garage_door",
+    "opening",
+    "moisture",
+    "smoke",
+    "gas",
+    "problem",
+    "safety",
+    "tamper",
+    "vibration",
+}
+
+
+def render_status_icons(
+    draw: ImageDraw.ImageDraw,
+    widget: Widget,
+    config: DisplayConfig,
+) -> None:
+    x = widget.get("x", PADDING)
+    y = widget.get("y", 0)
+    title = widget.get("title", "")
+    entity_ids: list[str] = widget.get("entities", [])
+    states = config.get("states", {})
+    width = config["width"]
+
+    font = _load_font(18)
+    font_title = _load_font(22)
+
+    if title:
+        draw.text((x, y), title, fill=COLOR_BLACK, font=font_title)
+        y += 30
+
+    cur_x = x
+    for entity_id in entity_ids:
+        state = states.get(entity_id)
+        if state is None:
+            continue
+        attrs = state.get("attributes", {})
+        label = attrs.get("friendly_name", entity_id)
+        is_on = state.get("state") == "on"
+        device_class = attrs.get("device_class", "")
+        is_problem = is_on and device_class in _PROBLEM_DEVICE_CLASSES
+
+        s = _STATUS_ICON_SIZE
+        bbox = draw.textbbox((0, 0), label, font=font)
+        text_w = bbox[2] - bbox[0]
+        item_w = s + 6 + text_w + 20
+
+        if cur_x + item_w > width - PADDING and cur_x > x:
+            cur_x = x
+            y += _STATUS_ROW_HEIGHT
+
+        if is_problem:
+            draw.rectangle(
+                [cur_x, y + 4, cur_x + s, y + 4 + s],
+                fill=COLOR_BLACK,
+            )
+        else:
+            draw.rectangle(
+                [cur_x, y + 4, cur_x + s, y + 4 + s],
+                outline=COLOR_GRAY,
+            )
+
+        draw.text((cur_x + s + 6, y), label, fill=COLOR_BLACK, font=font)
+
+        cur_x += item_w
+
+
 _RENDERERS: dict[WidgetType, RendererFn] = {
     WidgetType.TEXT: render_text,
     WidgetType.LINE: render_line,
@@ -385,6 +457,7 @@ _RENDERERS: dict[WidgetType, RendererFn] = {
     WidgetType.WEATHER: render_weather,
     WidgetType.SENSOR_ROWS: render_sensor_rows,
     WidgetType.BATTERY_BAR: render_battery_bar,
+    WidgetType.STATUS_ICONS: render_status_icons,
 }
 
 

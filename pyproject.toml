@@ -27,6 +27,7 @@ asyncio_mode = "auto"
 [tool.ty.src]
 exclude = [
     "tests/",
+    ".tmp/",
 ]
 
 [[tool.ty.overrides]]

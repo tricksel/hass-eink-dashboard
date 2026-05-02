@@ -662,3 +662,211 @@ class TestRenderBatteryBar:
             for y in range(21, 43)
         )
         assert has_dark_fill
+
+
+MOCK_STATUS_ICON_STATES = {
+    "binary_sensor.front_door": {
+        "state": "on",
+        "attributes": {
+            "friendly_name": "Front Door",
+            "device_class": "door",
+        },
+    },
+    "binary_sensor.kitchen_window": {
+        "state": "off",
+        "attributes": {
+            "friendly_name": "Kitchen Window",
+            "device_class": "window",
+        },
+    },
+    "binary_sensor.water_alarm": {
+        "state": "on",
+        "attributes": {
+            "friendly_name": "Water Alarm",
+            "device_class": "moisture",
+        },
+    },
+    "binary_sensor.motion": {
+        "state": "off",
+        "attributes": {
+            "friendly_name": "Motion",
+            "device_class": "motion",
+        },
+    },
+}
+
+
+class TestRenderStatusIcons:
+    def _config(self, **overrides: object) -> dict[str, object]:
+        base: dict[str, object] = {
+            "width": 500,
+            "height": 200,
+            "states": MOCK_STATUS_ICON_STATES,
+        }
+        base.update(overrides)
+        return base
+
+    def test_status_icons_draws_entities(self) -> None:
+        widgets = [
+            {
+                "type": "status_icons",
+                "x": PADDING,
+                "y": 10,
+                "entities": [
+                    "binary_sensor.front_door",
+                    "binary_sensor.kitchen_window",
+                ],
+            }
+        ]
+        result = render_dashboard(widgets, self._config())
+
+        img = _png_to_image(result)
+        has_content = any(
+            _pixel(img, x, y) < 200
+            for x in range(PADDING, 300)
+            for y in range(10, 36)
+        )
+        assert has_content
+
+    def test_status_icons_problem_fills_square(self) -> None:
+        # front_door: state=on, device_class=door → problem → filled square
+        widgets = [
+            {
+                "type": "status_icons",
+                "x": PADDING,
+                "y": 10,
+                "entities": ["binary_sensor.front_door"],
+            }
+        ]
+        result = render_dashboard(widgets, self._config())
+
+        img = _png_to_image(result)
+        has_black = any(
+            _pixel(img, x, y) < 64
+            for x in range(PADDING, PADDING + 13)
+            for y in range(14, 27)
+        )
+        assert has_black
+
+    def test_status_icons_ok_draws_outline(self) -> None:
+        # kitchen_window: state=off → not a problem → outline only
+        widgets = [
+            {
+                "type": "status_icons",
+                "x": PADDING,
+                "y": 10,
+                "entities": ["binary_sensor.kitchen_window"],
+            }
+        ]
+        result = render_dashboard(widgets, self._config())
+
+        img = _png_to_image(result)
+        # Interior of the outline square should NOT be solid black
+        interior_black = all(
+            _pixel(img, x, y) < 64
+            for x in range(PADDING + 2, PADDING + 11)
+            for y in range(16, 25)
+        )
+        assert not interior_black
+        # But the outline itself should have some dark pixels
+        has_outline = any(
+            _pixel(img, x, y) < 200
+            for x in range(PADDING, PADDING + 13)
+            for y in range(14, 27)
+        )
+        assert has_outline
+
+    def test_status_icons_with_title(self) -> None:
+        widgets = [
+            {
+                "type": "status_icons",
+                "x": PADDING,
+                "y": 10,
+                "title": "Doors",
+                "entities": ["binary_sensor.front_door"],
+            }
+        ]
+        result = render_dashboard(widgets, self._config())
+
+        img = _png_to_image(result)
+        has_title = any(
+            _pixel(img, x, y) < 128
+            for x in range(PADDING, 200)
+            for y in range(10, 40)
+        )
+        assert has_title
+        has_icon = any(
+            _pixel(img, x, y) < 128
+            for x in range(PADDING, 200)
+            for y in range(40, 70)
+        )
+        assert has_icon
+
+    def test_status_icons_missing_entity_skipped(self) -> None:
+        widgets = [
+            {
+                "type": "status_icons",
+                "x": PADDING,
+                "y": 10,
+                "entities": [
+                    "binary_sensor.nonexistent",
+                    "binary_sensor.kitchen_window",
+                ],
+            }
+        ]
+        result = render_dashboard(widgets, self._config())
+
+        img = _png_to_image(result)
+        has_content = any(
+            _pixel(img, x, y) < 200
+            for x in range(PADDING, 300)
+            for y in range(10, 36)
+        )
+        assert has_content
+
+    def test_status_icons_empty_entities_is_noop(self) -> None:
+        widgets = [
+            {
+                "type": "status_icons",
+                "x": PADDING,
+                "y": 10,
+                "entities": [],
+            }
+        ]
+        result = render_dashboard(widgets, self._config())
+
+        img = _png_to_image(result)
+        all_white = all(
+            _pixel(img, x, y) == 255
+            for x in range(0, 500, 20)
+            for y in range(0, 200, 20)
+        )
+        assert all_white
+
+    def test_status_icons_wraps_to_next_row(self) -> None:
+        # Narrow canvas forces wrapping after first entity
+        widgets = [
+            {
+                "type": "status_icons",
+                "x": PADDING,
+                "y": 10,
+                "entities": [
+                    "binary_sensor.front_door",
+                    "binary_sensor.kitchen_window",
+                    "binary_sensor.water_alarm",
+                    "binary_sensor.motion",
+                ],
+            }
+        ]
+        result = render_dashboard(
+            widgets,
+            {"width": 200, "height": 200, "states": MOCK_STATUS_ICON_STATES},
+        )
+
+        img = _png_to_image(result)
+        has_second_row = any(
+            _pixel(img, x, y) < 200
+            for x in range(PADDING, 180)
+            for y in range(36, 80)
+        )
+        assert has_second_row
