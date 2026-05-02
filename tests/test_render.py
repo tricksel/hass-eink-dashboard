@@ -372,6 +372,72 @@ class TestRenderWeather:
         )
         assert icon_area_has_drawing
 
+    def test_weather_landscape_layout(self) -> None:
+        """Weather widget on a wide, short canvas (e.g. TRMNL OG 800x480)."""
+        widgets = [
+            {
+                "type": "weather",
+                "entity": "weather.home",
+                "x": PADDING,
+                "y": 10,
+                "forecast_days": 3,
+            }
+        ]
+        config = self._config(width=800, height=480)
+        result = render_dashboard(widgets, config)
+
+        img = _png_to_image(result)
+        # Temperature drawn in the left area
+        has_temp = any(
+            _pixel(img, x, y) < 128
+            for x in range(PADDING + 100, 350)
+            for y in range(10, 60)
+        )
+        assert has_temp
+        # Humidity/wind right-aligned near the right edge
+        has_right = any(
+            _pixel(img, x, y) < 128
+            for x in range(650, 776)
+            for y in range(10, 70)
+        )
+        assert has_right
+        # Forecast section visible
+        has_forecast = any(
+            _pixel(img, x, y) < 128
+            for x in range(50, 750)
+            for y in range(110, 200)
+        )
+        assert has_forecast
+
+    def test_weather_narrow_no_overlap(self) -> None:
+        """Humidity/wind must not overlap temperature on narrow displays."""
+        widgets = [
+            {
+                "type": "weather",
+                "entity": "weather.home",
+                "x": PADDING,
+                "y": 10,
+            }
+        ]
+        config = self._config(width=350, height=200)
+        result = render_dashboard(widgets, config)
+
+        img = _png_to_image(result)
+        # Temperature is drawn
+        has_temp = any(
+            _pixel(img, x, y) < 128
+            for x in range(PADDING + 100, 250)
+            for y in range(10, 60)
+        )
+        assert has_temp
+        # Humidity is drawn (right-aligned, near right edge)
+        has_hum = any(
+            _pixel(img, x, y) < 128
+            for x in range(250, 326)
+            for y in range(10, 40)
+        )
+        assert has_hum
+
     def test_weather_rainy_condition(self) -> None:
         states = {
             "weather.home": {

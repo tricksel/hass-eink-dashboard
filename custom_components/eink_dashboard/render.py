@@ -227,15 +227,23 @@ def render_weather(
     )
 
     width = config["width"]
+
+    hum_text = f"{humidity}%"
+    bbox = draw.textbbox((0, 0), hum_text, font=font_md)
+    hum_w = bbox[2] - bbox[0]
     draw.text(
-        (width - PADDING - 120, y + 8),
-        f"{humidity}%",
+        (width - PADDING - hum_w, y + 8),
+        hum_text,
         fill=COLOR_BLACK,
         font=font_md,
     )
+
+    wind_text = f"{wind} km/h"
+    bbox = draw.textbbox((0, 0), wind_text, font=font_md)
+    wind_w = bbox[2] - bbox[0]
     draw.text(
-        (width - PADDING - 120, y + 38),
-        f"{wind} km/h",
+        (width - PADDING - wind_w, y + 38),
+        wind_text,
         fill=COLOR_BLACK,
         font=font_md,
     )
