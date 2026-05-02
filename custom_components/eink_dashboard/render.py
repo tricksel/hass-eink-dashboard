@@ -336,8 +336,10 @@ def render_sensor_rows(
         y += _SENSOR_ROW_HEIGHT
 
 
-_BATTERY_BAR_WIDTH = 200
-_BATTERY_BAR_HEIGHT = 16
+_BATTERY_BODY_W = 22
+_BATTERY_BODY_H = 10
+_BATTERY_NUB_W = 2
+_BATTERY_NUB_H = 4
 
 
 def render_battery_bar(
@@ -359,27 +361,34 @@ def render_battery_bar(
 
     x = widget.get("x", PADDING)
     y = widget.get("y", 0)
-    bar_w = widget.get("width", _BATTERY_BAR_WIDTH)
-    bar_h = widget.get("height", _BATTERY_BAR_HEIGHT)
     color = widget.get("color", COLOR_BLACK)
 
+    bw = _BATTERY_BODY_W
+    bh = _BATTERY_BODY_H
+
     draw.rectangle(
-        [x, y, x + bar_w, y + bar_h],
+        [x, y, x + bw, y + bh],
         outline=COLOR_GRAY,
         width=1,
     )
 
-    fill_w = int(bar_w * pct / 100)
+    nub_y = y + (bh - _BATTERY_NUB_H) // 2
+    draw.rectangle(
+        [x + bw + 1, nub_y, x + bw + _BATTERY_NUB_W, nub_y + _BATTERY_NUB_H],
+        fill=COLOR_GRAY,
+    )
+
+    fill_w = int((bw - 2) * pct / 100)
     if fill_w > 0:
         draw.rectangle(
-            [x + 1, y + 1, x + fill_w - 1, y + bar_h - 1],
+            [x + 1, y + 1, x + 1 + fill_w, y + bh - 1],
             fill=color,
         )
 
-    font = _load_font(bar_h)
+    font = _load_font(14)
     label = f"{pct}%"
     draw.text(
-        (x + bar_w + 6, y - 1),
+        (x + bw + _BATTERY_NUB_W + 4, y - 2),
         label,
         fill=color,
         font=font,

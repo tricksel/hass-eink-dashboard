@@ -654,10 +654,11 @@ class TestRenderBatteryBar:
         result = render_dashboard(widgets, self._config())
 
         img = _png_to_image(result)
+        # Fill inside compact battery icon (22x10 body)
         has_dark_fill = any(
             _pixel(img, x, y) < 128
-            for x in range(PADDING + 1, PADDING + 100)
-            for y in range(21, 36)
+            for x in range(PADDING + 1, PADDING + 16)
+            for y in range(21, 30)
         )
         assert has_dark_fill
 
@@ -712,26 +713,45 @@ class TestRenderBatteryBar:
         )
         assert all_white
 
-    def test_battery_bar_custom_size(self) -> None:
+    def test_battery_bar_draws_percentage_text(self) -> None:
         widgets = [
             {
                 "type": "battery_bar",
                 "x": PADDING,
                 "y": 20,
                 "entity": "sensor.kindle_battery",
-                "width": 300,
-                "height": 24,
             }
         ]
         result = render_dashboard(widgets, self._config())
 
         img = _png_to_image(result)
-        has_dark_fill = any(
+        # "75%" text drawn to the right of the icon
+        has_text = any(
             _pixel(img, x, y) < 128
-            for x in range(PADDING + 1, PADDING + 220)
-            for y in range(21, 43)
+            for x in range(PADDING + 28, PADDING + 70)
+            for y in range(18, 34)
         )
-        assert has_dark_fill
+        assert has_text
+
+    def test_battery_bar_draws_nub(self) -> None:
+        widgets = [
+            {
+                "type": "battery_bar",
+                "x": PADDING,
+                "y": 20,
+                "entity": "sensor.kindle_battery",
+            }
+        ]
+        result = render_dashboard(widgets, self._config())
+
+        img = _png_to_image(result)
+        # Terminal nub right of the body (at x + 22..24)
+        has_nub = any(
+            _pixel(img, x, y) < 200
+            for x in range(PADDING + 23, PADDING + 25)
+            for y in range(23, 27)
+        )
+        assert has_nub
 
 
 MOCK_STATUS_ICON_STATES = {
