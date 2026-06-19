@@ -406,6 +406,27 @@ export interface WasteScheduleEntry {
   label: string;
 }
 
+/** Upcoming calendar events from a single HA calendar entity. */
+export interface CalendarWidget extends WidgetBase {
+  type: "calendar";
+  /** HA calendar entity ID (e.g. "calendar.family"). */
+  entity?: string;
+  /** Optional card header text shown above the event list. */
+  title?: string;
+  /**
+   * Maximum number of upcoming events to display.
+   * Defaults to 5.
+   */
+  max_events?: number;
+  /**
+   * Look-ahead window in days used when fetching events from HA.
+   * Defaults to 7.
+   */
+  days_ahead?: number;
+  /** Decorative frame style. */
+  card_style?: CardStyle;
+}
+
 /** Waste-collection schedule widget with relative dates. */
 export interface WasteScheduleWidget extends WidgetBase {
   type: "waste_schedule";
@@ -663,6 +684,7 @@ export type Widget =
   | WeatherWidget
   | DeviceBatteryWidget
   | WasteScheduleWidget
+  | CalendarWidget
   | TileWidget
   | HeadingWidget
   | EntitiesWidget

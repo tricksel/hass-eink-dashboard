@@ -406,6 +406,86 @@ async def _fetch_history(
             states[entity_id]["history"] = entries
 
 
+async def _fetch_calendar_events(
+    hass: HomeAssistant,
+    widgets: list[dict[str, Any]],
+    states: dict[str, Any],
+) -> None:
+    """Fetch upcoming events for calendar widgets and inject into states.
+
+    Calls the ``calendar.get_events`` service for each unique calendar
+    entity referenced by ``widgets`` and writes the event list into
+    ``states[entity_id]["attributes"]["events"]`` so the widget
+    context builder can access multiple events without real-time HA
+    access at render time.
+
+    The fetch window starts at the current time and extends to the
+    maximum ``days_ahead`` configured across all calendar widgets that
+    reference the same entity.  Silently skips any entity where the
+    service call fails (entity offline, integration not loaded, etc.).
+
+    Args:
+        hass: Home Assistant instance.
+        widgets: Widget dicts to scan for calendar entity IDs.
+        states: Mutable states dict; events are injected in-place
+            under ``states[entity_id]["attributes"]["events"]``.
+    """
+    calendar_entities: dict[str, int] = {}
+    for w in widgets:
+        if w.get("type") == WidgetType.CALENDAR:
+            eid = w.get("entity", "")
+            if not eid:
+                continue
+            if eid not in states:
+                _LOGGER.warning(
+                    "Calendar entity %r is not in the states snapshot; "
+                    "events will not be fetched and the widget will render "
+                    "blank. Check that the entity exists in Home Assistant.",
+                    eid,
+                )
+                continue
+            try:
+                days = max(1, int(w.get("days_ahead", 7)))
+            except (ValueError, TypeError):
+                days = 7
+            if days > calendar_entities.get(eid, 0):
+                calendar_entities[eid] = days
+
+    if not calendar_entities:
+        return
+
+    now = dt.datetime.now(dt.UTC)
+    for entity_id, days in calendar_entities.items():
+        end_dt = now + timedelta(days=days)
+        try:
+            result = await hass.services.async_call(
+                "calendar",
+                "get_events",
+                {
+                    "entity_id": entity_id,
+                    "start_date_time": now.isoformat(),
+                    "end_date_time": end_dt.isoformat(),
+                },
+                blocking=True,
+                return_response=True,
+            )
+            if result is None:
+                continue
+            entity_data = result.get(entity_id)
+            raw = (
+                entity_data.get("events")
+                if isinstance(entity_data, dict)
+                else None
+            )
+            events: list[dict[str, Any]] = cast(
+                "list[dict[str, Any]]",
+                raw if isinstance(raw, list) else [],
+            )
+            states[entity_id]["attributes"]["events"] = events
+        except Exception:  # noqa: BLE001
+            _LOGGER.debug("Could not fetch calendar events for %s", entity_id)
+
+
 @websocket_api.websocket_command(
     {
         vol.Required("type"): "eink_dashboard/render_widget",
@@ -458,6 +538,7 @@ async def ws_render_widget(
     config = await _build_display_config(hass, entry_id)
     await _fetch_forecasts(hass, [widget], config["states"])
     await _fetch_history(hass, [widget], config["states"])
+    await _fetch_calendar_events(hass, [widget], config["states"])
     try:
         svg = await hass.async_add_executor_job(
             render_widget_svg, widget, config
@@ -523,6 +604,7 @@ async def ws_render_widgets(
     config = await _build_display_config(hass, entry_id)
     await _fetch_forecasts(hass, widgets, config["states"])
     await _fetch_history(hass, widgets, config["states"])
+    await _fetch_calendar_events(hass, widgets, config["states"])
 
     # Render all widgets in a single executor job: render_widget_svg
     # is CPU-bound (Jinja2 + resvg), and one thread per widget would

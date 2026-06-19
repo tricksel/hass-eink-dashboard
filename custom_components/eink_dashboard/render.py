@@ -15,7 +15,7 @@ import functools
 import io
 import logging
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -475,6 +475,21 @@ def _left_bar_width(m: WidgetMetrics, grayscale_levels: int) -> int:
 
 _DAY_ABBREV = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 
+_MONTH_ABBREV = [
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
+]
+
 
 _PROBLEM_DEVICE_CLASSES = {
     "door",
@@ -563,6 +578,138 @@ def _format_relative_date(days: int | None, raw: str) -> str:
     if days == 1:
         return "tomorrow"
     return f"in {days} days"
+
+
+def _parse_calendar_dt(
+    raw: str,
+) -> tuple[date, tuple[int, int] | None]:
+    """Parse a calendar event datetime string into date and time parts.
+
+    Handles the two formats returned by HA's ``calendar.get_events``
+    service: a date-only string (``YYYY-MM-DD``) for all-day events
+    and an ISO 8601 datetime string for timed events.  Any timezone
+    offset is stripped so the returned time reflects the local
+    wall-clock value as HA presents it to the owner's browser.
+
+    Args:
+        raw: Date string (``"YYYY-MM-DD"``) or ISO 8601 datetime
+            (``"YYYY-MM-DDTHH:MM:SS"`` or with a timezone offset).
+
+    Returns:
+        ``(event_date, (hour, minute))`` for timed events, or
+        ``(event_date, None)`` for all-day events.  Falls back to
+        today's date on any parse error.
+    """
+    sep = "T" if "T" in raw else (" " if " " in raw else "")
+    if sep:
+        date_part, time_part = raw.split(sep, 1)
+        # Take only "HH:MM" — drops seconds and any TZ offset.
+        time_clean = time_part[:5]
+        try:
+            event_date = date.fromisoformat(date_part[:10])
+            hour = int(time_clean[:2])
+            minute = int(time_clean[3:5])
+            return event_date, (hour, minute)
+        except (ValueError, IndexError):
+            pass
+    try:
+        return date.fromisoformat(raw[:10]), None
+    except ValueError:
+        return date.today(), None
+
+
+def _format_calendar_label(
+    start: str,
+    all_day: bool,
+    today: date,
+    time_format: str = "24",
+) -> str:
+    """Format a calendar event start time as a right-aligned label.
+
+    Produces a short human-readable string for the value column in a
+    calendar widget row.  The day part uses relative labels (Today,
+    Tomorrow) for events close to today and an abbreviated month+day
+    for events further away.  The time part is appended for timed
+    events (i.e. not all-day) according to ``time_format``.
+
+    Args:
+        start: Event start string as returned by
+            ``calendar.get_events`` (``"YYYY-MM-DD"`` for all-day
+            or ISO 8601 datetime for timed events).
+        all_day: When ``True``, the time part is always omitted.
+        today: Reference date used to compute relative labels.
+        time_format: ``"24"`` for 24-hour clock (e.g. ``"14:00"``),
+            ``"12"`` for 12-hour with AM/PM (e.g. ``"2:00 PM"``).
+
+    Returns:
+        A label such as ``"Today"``, ``"Today 14:00"``,
+        ``"Tomorrow"``, ``"Mon 09:30"``, or ``"Jun 16"``.
+    """
+    event_date, hm = _parse_calendar_dt(start)
+    delta = (event_date - today).days
+    if delta == 0:
+        day_label = "Today"
+    elif delta == 1:
+        day_label = "Tomorrow"
+    elif 2 <= delta < 7:
+        day_label = _DAY_ABBREV[event_date.weekday()]
+    else:
+        month = _MONTH_ABBREV[event_date.month - 1]
+        day_label = f"{month} {event_date.day}"
+
+    if all_day or hm is None:
+        return day_label
+
+    hour, minute = hm
+    if time_format == "12":
+        ampm = "AM" if hour < 12 else "PM"
+        h12 = hour % 12 or 12
+        return f"{day_label} {h12}:{minute:02d} {ampm}"
+    return f"{day_label} {hour}:{minute:02d}"
+
+
+def _is_event_now(start: str, end: str, now: datetime) -> bool:
+    """Return True when a calendar event is currently in progress.
+
+    For all-day events the comparison is date-only (the event is
+    current when today falls within ``[start_date, end_date)``).
+    For timed events both boundaries are reconstructed as naive
+    ``datetime`` objects after stripping any timezone offset, so
+    that local wall-clock time is used throughout.
+
+    Args:
+        start: Event start string (``"YYYY-MM-DD"`` or ISO 8601
+            datetime).
+        end: Event end string in the same format as ``start``.
+        now: Current local date and time (timezone-naive).
+
+    Returns:
+        ``True`` when ``now`` falls within ``[start, end)``.
+    """
+    start_date, start_hm = _parse_calendar_dt(start)
+    end_date, end_hm = _parse_calendar_dt(end)
+
+    if start_hm is None or end_hm is None:
+        # All-day: current when today is in [start_date, end_date).
+        return start_date <= now.date() < end_date
+
+    start_naive = datetime(
+        start_date.year,
+        start_date.month,
+        start_date.day,
+        start_hm[0],
+        start_hm[1],
+    )
+    end_naive = datetime(
+        end_date.year,
+        end_date.month,
+        end_date.day,
+        end_hm[0],
+        end_hm[1],
+    )
+    # Strip tz info if caller accidentally passed an aware datetime.
+    now_naive = now.replace(tzinfo=None)
+    return start_naive <= now_naive < end_naive
 
 
 def render_dashboard(

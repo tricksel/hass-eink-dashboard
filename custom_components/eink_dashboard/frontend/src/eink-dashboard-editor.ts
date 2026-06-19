@@ -149,6 +149,22 @@ export const WIDGET_TYPES: Record<string, WidgetTypeMeta> = {
       card_style: DEFAULT_CARD_STYLE,
     },
   },
+  calendar: {
+    label: "Calendar",
+    description: "Upcoming events from a calendar entity",
+    icon: "mdi:calendar",
+    defaults: {
+      type: "calendar",
+      x: 24,
+      y: 0,
+      w: 400,
+      h: 56,
+      entity: "",
+      max_events: 5,
+      days_ahead: 7,
+      card_style: DEFAULT_CARD_STYLE,
+    },
+  },
   sensor: {
     label: "Sensor",
     description: "Single sensor with optional history sparkline graph",
@@ -835,6 +851,55 @@ export const SCHEMAS: Record<
       schema: [cardStyleSelector()],
     },
   ],
+  calendar: (d) => [
+    identitySection(),
+    {
+      name: "content",
+      type: "expandable",
+      flatten: true,
+      expanded: true,
+      title: "Content",
+      icon: "mdi:calendar",
+      schema: [
+        {
+          name: "entity",
+          required: true,
+          selector: { entity: { domain: "calendar" } },
+        },
+        { name: "title", selector: { text: {} } },
+        {
+          name: "max_events",
+          default: 5,
+          selector: {
+            number: { min: 1, max: 20, mode: "box" },
+          },
+        },
+        {
+          name: "days_ahead",
+          default: 7,
+          selector: {
+            number: { min: 1, max: 30, mode: "box" },
+          },
+        },
+      ],
+    },
+    {
+      name: "layout_pos",
+      type: "expandable",
+      flatten: true,
+      title: "Layout",
+      icon: "mdi:move-resize",
+      schema: [{ type: "grid", name: "", schema: posXYWH(d) }],
+    },
+    {
+      name: "appearance",
+      type: "expandable",
+      flatten: true,
+      title: "Appearance",
+      icon: "mdi:palette",
+      schema: [cardStyleSelector()],
+    },
+  ],
 };
 
 export const HELPERS: Record<string, string> = {
@@ -873,6 +938,8 @@ export const LABELS: Record<string, string> = {
   detail: "Detail",
   limits_min: "Y-axis minimum",
   limits_max: "Y-axis maximum",
+  max_events: "Max events",
+  days_ahead: "Days ahead",
 };
 
 // ── HA component loader ──────────────────────────────────────────
@@ -911,7 +978,10 @@ export function getSummary(widget: Widget): string {
     const s = String(widget.heading || "");
     return s.length > 30 ? s.slice(0, 30) + "…" : (s || "(empty)");
   }
-  if (t === "weather" || t === "tile" || t === "entity" || t === "sensor") {
+  if (
+    t === "weather" || t === "tile" || t === "entity"
+    || t === "sensor" || t === "calendar"
+  ) {
     return widget.entity || "(no entity)";
   }
   if (t === "device_battery") {

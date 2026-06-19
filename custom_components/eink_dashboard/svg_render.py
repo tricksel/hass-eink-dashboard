@@ -418,6 +418,7 @@ type SvgContextFn = Callable[[Widget, DisplayConfig], dict[str, object]]
 # from this module; by this point all icon/filter helpers exist in
 # the partially-loaded svg_render module namespace.
 from .widgets import (  # noqa: E402
+    _build_calendar_context,
     _build_device_battery_context,
     _build_entities_context,
     _build_entity_context,
@@ -430,6 +431,7 @@ from .widgets import (  # noqa: E402
 )
 
 _SVG_RENDERERS: dict[str, SvgContextFn] = {
+    WidgetType.CALENDAR: _build_calendar_context,
     WidgetType.DEVICE_BATTERY: _build_device_battery_context,
     WidgetType.ENTITIES: _build_entities_context,
     WidgetType.ENTITY: _build_entity_context,

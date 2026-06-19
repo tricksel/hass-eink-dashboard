@@ -20,6 +20,7 @@ const ICON_FALLBACK: Record<string, string> = {
   "mdi:card-text-outline": "▢",
   "mdi:format-list-bulleted": "☰",
   "mdi:chart-line": "📈",
+  "mdi:calendar": "📅",
 };
 
 /**
